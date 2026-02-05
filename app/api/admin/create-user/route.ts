@@ -48,7 +48,13 @@ export async function POST(req: Request) {
   // 4) Insert profile row
   const { error: pErr } = await supabaseAdmin
     .from("profiles")
-    .insert({ id: data.user.id, name, role: "employee" });
+    .insert({ 
+      id: data.user.id, 
+      name, 
+      role: "employee",
+      sick_leave_balance: 7,
+      casual_leave_balance: 14
+    });
 
   if (pErr) {
     return NextResponse.json({ error: pErr.message }, { status: 400 });

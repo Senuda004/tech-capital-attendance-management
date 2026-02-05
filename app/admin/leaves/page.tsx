@@ -48,7 +48,7 @@ export default function AdminLeavesPage() {
 
     const { data, error } = await supabase
       .from("leave_requests")
-      .select("id,user_id,from_date,to_date,reason,status,created_at,profiles(name)")
+      .select("id,user_id,from_date,to_date,reason,status,leave_type,created_at,profiles(name)")
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -67,6 +67,35 @@ export default function AdminLeavesPage() {
   }, []);
 
   async function setStatus(id: number, status: "approved" | "rejected") {
+    // If rejecting, restore the leave balance
+    if (status === "rejected") {
+      const leaveRequest = rows.find((r) => r.id === id);
+      if (leaveRequest) {
+        const fromDate = new Date(leaveRequest.from_date);
+        const toDate = new Date(leaveRequest.to_date);
+        const daysDiff = Math.ceil((toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        const balanceColumn = leaveRequest.leave_type === "annual" ? "sick_leave_balance" : "casual_leave_balance";
+        
+        // Get current balance
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select(balanceColumn)
+          .eq("id", leaveRequest.user_id)
+          .single();
+        
+        if (profile) {
+          const currentBalance = (profile as any)[balanceColumn] ?? 0;
+          const newBalance = currentBalance + daysDiff;
+          
+          // Restore balance
+          await supabase
+            .from("profiles")
+            .update({ [balanceColumn]: newBalance })
+            .eq("id", leaveRequest.user_id);
+        }
+      }
+    }
+
     const { error } = await supabase.from("leave_requests").update({ status }).eq("id", id);
     if (error) {
       alert(error.message);
@@ -102,19 +131,34 @@ export default function AdminLeavesPage() {
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
                     <th className="p-4 text-left font-semibold text-gray-700">Employee</th>
+                    <th className="p-4 text-left font-semibold text-gray-700">Leave Type</th>
                     <th className="p-4 text-left font-semibold text-gray-700">From</th>
                     <th className="p-4 text-left font-semibold text-gray-700">To</th>
+                    <th className="p-4 text-left font-semibold text-gray-700">Days</th>
                     <th className="p-4 text-left font-semibold text-gray-700">Reason</th>
                     <th className="p-4 text-left font-semibold text-gray-700">Status</th>
                     <th className="p-4 text-left font-semibold text-gray-700">Action</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-100">
-                  {rows.map((r) => (
+                  {rows.map((r) => {
+                    const fromDate = new Date(r.from_date);
+                    const toDate = new Date(r.to_date);
+                    const daysDiff = Math.ceil((toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                    
+                    return (
                     <tr key={r.id} className="hover:bg-gray-50 transition-colors">
                       <td className="p-4 font-medium">{r.profiles?.name ?? r.user_id}</td>
+                      <td className="p-4">
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
+                          r.leave_type === 'annual' ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'
+                        }`}>
+                          {r.leave_type === 'annual' ? 'Sick' : 'Casual'}
+                        </span>
+                      </td>
                       <td className="p-4 text-gray-600">{r.from_date}</td>
                       <td className="p-4 text-gray-600">{r.to_date}</td>
+                      <td className="p-4 text-gray-600 font-medium">{daysDiff}</td>
                       <td className="p-4 text-gray-600">{r.reason}</td>
                       <td className="p-4">
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
@@ -146,7 +190,8 @@ export default function AdminLeavesPage() {
                         )}
                       </td>
                     </tr>
-                  ))}
+                  );
+                  })}
                   {rows.length === 0 && (
                     <tr>
                       <td className="p-4 text-center text-gray-400" colSpan={6}>

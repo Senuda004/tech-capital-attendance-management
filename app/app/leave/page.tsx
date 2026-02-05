@@ -108,8 +108,8 @@ export default function LeaveRequestPage() {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [annualLeaveBalance, setAnnualLeaveBalance] = useState<number>(14);
-  const [casualLeaveBalance, setCasualLeaveBalance] = useState<number>(7);
+  const [sickLeaveBalance, setSickLeaveBalance] = useState<number>(7);
+  const [casualLeaveBalance, setCasualLeaveBalance] = useState<number>(14);
 
   useEffect(() => {
     async function checkRole() {
@@ -121,7 +121,7 @@ export default function LeaveRequestPage() {
 
       const { data: prof } = await supabase
         .from("profiles")
-        .select("role,annual_leave_balance,casual_leave_balance")
+        .select("role,sick_leave_balance,casual_leave_balance")
         .eq("id", u.user.id)
         .single();
 
@@ -130,8 +130,8 @@ export default function LeaveRequestPage() {
         return;
       }
 
-      setAnnualLeaveBalance(prof?.annual_leave_balance ?? 14);
-      setCasualLeaveBalance(prof?.casual_leave_balance ?? 7);
+      setSickLeaveBalance(prof?.sick_leave_balance ?? 7);
+      setCasualLeaveBalance(prof?.casual_leave_balance ?? 14);
     }
     checkRole();
   }, [supabase, router]);
@@ -158,7 +158,7 @@ export default function LeaveRequestPage() {
     const daysDiff = Math.ceil((toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
     
     // Check leave balance
-    const currentBalance = leaveType === "annual" ? annualLeaveBalance : casualLeaveBalance;
+    const currentBalance = leaveType === "annual" ? sickLeaveBalance : casualLeaveBalance;
     if (daysDiff > currentBalance) {
       setErr(`Insufficient leave balance. You have ${currentBalance} days remaining for ${leaveType} leave.`);
       return;
@@ -204,24 +204,54 @@ export default function LeaveRequestPage() {
       return;
     }
 
+    // Deduct leave balance immediately
+    const balanceColumn = leaveType === "annual" ? "sick_leave_balance" : "casual_leave_balance";
+    const newBalance = currentBalance - daysDiff;
+
+    console.log("Updating balance:", { balanceColumn, currentBalance, newBalance, daysDiff, userId: u.user.id });
+
+    const { error: updateErr } = await supabase
+      .from("profiles")
+      .update({ [balanceColumn]: newBalance })
+      .eq("id", u.user.id);
+
+    if (updateErr) {
+      console.error("Failed to update balance:", updateErr);
+      setErr(`Leave submitted but balance update failed: ${updateErr.message}`);
+    } else {
+      console.log("Balance updated successfully");
+      // Update local state
+      if (leaveType === "annual") {
+        setSickLeaveBalance(newBalance);
+      } else {
+        setCasualLeaveBalance(newBalance);
+      }
+    }
+
     try {
+      console.log("Sending email with params:", {
+        serviceId: process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID,
+        templateId: process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID,
+        publicKey: process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY,
+      });
+
       await emailjs.send(
         process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID!,
         process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID!,
         {
-          to_email: process.env.NEXT_PUBLIC_ADMIN_EMAIL!,
           employee_name: prof?.name ?? "Employee",
           from_date: fromYMDStr,
           to_date: toYMDStr,
           reason: reason.trim(),
           request_id: leave.id,
         },
-        { publicKey: process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY! }
+        process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY!
       );
 
       setMsg("Leave request submitted ✅ (email sent)");
       setReason("");
-    } catch {
+    } catch (emailError: any) {
+      console.error("Email error:", emailError);
       setMsg("Leave request submitted ✅ (email failed to send)");
     }
 
@@ -253,8 +283,8 @@ export default function LeaveRequestPage() {
             </div>
             <div className="flex gap-4">
               <div className="flex-1">
-                <div className="text-xs text-gray-600 mb-1">Annual Leave</div>
-                <div className="text-2xl font-bold text-gray-900">{annualLeaveBalance}</div>
+                <div className="text-xs text-gray-600 mb-1">Sick Leave</div>
+                <div className="text-2xl font-bold text-gray-900">{sickLeaveBalance}</div>
                 <div className="text-xs text-gray-500">days remaining</div>
               </div>
               <div className="flex-1">
@@ -277,7 +307,7 @@ export default function LeaveRequestPage() {
                   onChange={(e) => setLeaveType(e.target.value as "annual" | "casual")}
                   className="w-4 h-4 text-black focus:ring-black"
                 />
-                <span className="text-sm font-medium text-gray-900">Annual Leave ({annualLeaveBalance} days left)</span>
+                <span className="text-sm font-medium text-gray-900">Sick Leave ({sickLeaveBalance} days left)</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input

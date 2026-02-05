@@ -6,7 +6,14 @@ import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { isNonWorkingDay } from "@/lib/nonWorkingDays";
 
-type Profile = { id: string; name: string; role: string; created_at: string };
+type Profile = { 
+  id: string; 
+  name: string; 
+  role: string; 
+  created_at: string;
+  sick_leave_balance: number;
+  casual_leave_balance: number;
+};
 type AttendanceRow = {
   user_id: string;
   date: string;
@@ -109,7 +116,7 @@ export default function AdminAttendancePage() {
 
     const profRes = await supabase
       .from("profiles")
-      .select("id,name,role,created_at")
+      .select("id,name,role,created_at,sick_leave_balance,casual_leave_balance")
       .eq("role", "employee")
       .order("name", { ascending: true });
 
@@ -235,6 +242,8 @@ export default function AdminAttendancePage() {
         pendingLeaveDays,
         absentDays,
         workedMinutes,
+        sickLeaveBalance: p.sick_leave_balance ?? 7,
+        casualLeaveBalance: p.casual_leave_balance ?? 14,
       };
     });
   }, [profiles, attendance, leaves, month]);
@@ -283,6 +292,8 @@ export default function AdminAttendancePage() {
                     <th className="p-4 text-left font-semibold text-gray-700">Pending</th>
                     <th className="p-4 text-left font-semibold text-gray-700">Absent</th>
                     <th className="p-4 text-left font-semibold text-gray-700">Total Worked</th>
+                    <th className="p-4 text-left font-semibold text-gray-700">Sick Leave</th>
+                    <th className="p-4 text-left font-semibold text-gray-700">Casual Leave</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-100">
@@ -294,12 +305,22 @@ export default function AdminAttendancePage() {
                       <td className="p-4 text-yellow-600 font-medium">{r.pendingLeaveDays}</td>
                       <td className="p-4 text-red-600 font-semibold">{r.absentDays}</td>
                       <td className="p-4 font-medium">{formatHM(r.workedMinutes)}</td>
+                      <td className="p-4">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
+                          {r.sickLeaveBalance} days
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-50 text-purple-700">
+                          {r.casualLeaveBalance} days
+                        </span>
+                      </td>
                     </tr>
                   ))}
 
                   {report.length === 0 && (
                     <tr>
-                      <td className="p-4 text-center text-gray-400" colSpan={6}>
+                      <td className="p-4 text-center text-gray-400" colSpan={8}>
                         No employees found.
                       </td>
                     </tr>

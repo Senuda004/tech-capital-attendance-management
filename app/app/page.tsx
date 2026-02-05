@@ -44,7 +44,7 @@ export default function EmployeeAppPage() {
   const [row, setRow] = useState<AttendanceRow | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [location, setLocation] = useState<string>("");
-  const [annualLeaveBalance, setAnnualLeaveBalance] = useState<number>(0);
+  const [sickLeaveBalance, setSickLeaveBalance] = useState<number>(0);
   const [casualLeaveBalance, setCasualLeaveBalance] = useState<number>(0);
   const date = todayYMD();
 
@@ -63,7 +63,7 @@ export default function EmployeeAppPage() {
 
     const { data: prof, error: profErr } = await supabase
       .from("profiles")
-      .select("name,role,annual_leave_balance,casual_leave_balance")
+      .select("name,role,sick_leave_balance,casual_leave_balance")
       .eq("id", u.user.id)
       .single();
 
@@ -80,8 +80,8 @@ export default function EmployeeAppPage() {
     }
 
     setName(prof?.name ?? "");
-    setAnnualLeaveBalance(prof?.annual_leave_balance ?? 14);
-    setCasualLeaveBalance(prof?.casual_leave_balance ?? 7);
+    setSickLeaveBalance(prof?.sick_leave_balance ?? 7);
+    setCasualLeaveBalance(prof?.casual_leave_balance ?? 14);
 
     const { data: att, error: attErr } = await supabase
       .from("attendance")
@@ -192,8 +192,8 @@ export default function EmployeeAppPage() {
           </div>
           <div className="flex gap-4">
             <div className="flex-1 bg-white rounded-xl p-4 shadow-sm">
-              <div className="text-xs text-gray-600 mb-1">Annual Leave</div>
-              <div className="text-3xl font-bold text-gray-900">{annualLeaveBalance}</div>
+              <div className="text-xs text-gray-600 mb-1">Sick Leave</div>
+              <div className="text-3xl font-bold text-gray-900">{sickLeaveBalance}</div>
               <div className="text-xs text-gray-500">days remaining</div>
             </div>
             <div className="flex-1 bg-white rounded-xl p-4 shadow-sm">
