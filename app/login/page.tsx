@@ -44,9 +44,12 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center p-6 bg-gradient-to-br from-gray-50 to-gray-100">
       <form onSubmit={onSubmit} className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-gray-100 p-8 space-y-6">
-        <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight">Welcome Back</h1>
-          <p className="text-sm text-gray-500">Sign in to your account</p>
+        <div className="text-center space-y-4">
+          <img src="/tech-capital-logo.png" alt="Tech Capital" className="h-40 mx-auto" />
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Tech Capital Managed Services</h1>
+            <p className="text-sm text-gray-500 mt-2">Sign in to your account</p>
+          </div>
         </div>
 
         <div className="space-y-4">
