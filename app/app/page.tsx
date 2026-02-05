@@ -11,6 +11,7 @@ type AttendanceRow = {
   date: string; // YYYY-MM-DD
   check_in: string | null;
   check_out: string | null;
+  location: string | null;
 };
 
 function todayYMD() {
@@ -42,6 +43,9 @@ export default function EmployeeAppPage() {
   const [name, setName] = useState<string>("");
   const [row, setRow] = useState<AttendanceRow | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [location, setLocation] = useState<string>("");
+  const [annualLeaveBalance, setAnnualLeaveBalance] = useState<number>(0);
+  const [casualLeaveBalance, setCasualLeaveBalance] = useState<number>(0);
   const date = todayYMD();
 
   async function loadToday() {
@@ -59,7 +63,7 @@ export default function EmployeeAppPage() {
 
     const { data: prof, error: profErr } = await supabase
       .from("profiles")
-      .select("name,role")
+      .select("name,role,annual_leave_balance,casual_leave_balance")
       .eq("id", u.user.id)
       .single();
 
@@ -76,10 +80,12 @@ export default function EmployeeAppPage() {
     }
 
     setName(prof?.name ?? "");
+    setAnnualLeaveBalance(prof?.annual_leave_balance ?? 14);
+    setCasualLeaveBalance(prof?.casual_leave_balance ?? 7);
 
     const { data: att, error: attErr } = await supabase
       .from("attendance")
-      .select("id,date,check_in,check_out")
+      .select("id,date,check_in,check_out,location")
       .eq("user_id", u.user.id)
       .eq("date", date)
       .maybeSingle();
@@ -108,11 +114,17 @@ export default function EmployeeAppPage() {
       return;
     }
 
+    if (!location.trim()) {
+      setErr("Please enter your location.");
+      return;
+    }
+
     const { error } = await supabase.from("attendance").upsert(
       {
         user_id: userId,
         date,
         check_in: new Date().toISOString(),
+        location: location.trim(),
       },
       { onConflict: "user_id,date" }
     );
@@ -121,6 +133,7 @@ export default function EmployeeAppPage() {
       setErr(error.message);
       return;
     }
+    setLocation("");
     await loadToday();
   }
 
@@ -172,6 +185,25 @@ export default function EmployeeAppPage() {
           <LogoutButton />
         </div>
 
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-200 shadow-sm p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-sm font-semibold text-gray-900">Leave Balance</div>
+            <Link href="/app/leave" className="text-xs font-medium text-black hover:underline">Apply Leave →</Link>
+          </div>
+          <div className="flex gap-4">
+            <div className="flex-1 bg-white rounded-xl p-4 shadow-sm">
+              <div className="text-xs text-gray-600 mb-1">Annual Leave</div>
+              <div className="text-3xl font-bold text-gray-900">{annualLeaveBalance}</div>
+              <div className="text-xs text-gray-500">days remaining</div>
+            </div>
+            <div className="flex-1 bg-white rounded-xl p-4 shadow-sm">
+              <div className="text-xs text-gray-600 mb-1">Casual Leave</div>
+              <div className="text-3xl font-bold text-gray-900">{casualLeaveBalance}</div>
+              <div className="text-xs text-gray-500">days remaining</div>
+            </div>
+          </div>
+        </div>
+
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
           <div className="flex items-center justify-between">
             <div className="text-sm font-medium text-gray-500">Today's Status</div>
@@ -190,6 +222,12 @@ export default function EmployeeAppPage() {
                 <span className="text-gray-500">Check-in</span>
                 <span className="font-medium">{new Date(row.check_in).toLocaleTimeString()}</span>
               </div>
+              {row?.location && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Location</span>
+                  <span className="font-medium">{row.location}</span>
+                </div>
+              )}
               {row?.check_out && (
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Check-out</span>
@@ -205,6 +243,21 @@ export default function EmployeeAppPage() {
             </div>
           )}
         </div>
+
+        {!row?.check_in && (
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Location *
+            </label>
+            <input
+              type="text"
+              className="w-full rounded-xl border-2 border-gray-300 p-3 focus:ring-2 focus:ring-black focus:border-black transition-all outline-none text-gray-900 placeholder-gray-500"
+              placeholder="e.g., Head Office, Colombo, Main Outlet"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+            />
+          </div>
+        )}
 
         <Link
           href="/app/leave"

@@ -104,9 +104,12 @@ export default function LeaveRequestPage() {
   const [fromDate, setFromDate] = useState<Date>(todayDate());
   const [toDate, setToDate] = useState<Date>(todayDate());
   const [reason, setReason] = useState("");
+  const [leaveType, setLeaveType] = useState<"annual" | "casual">("annual");
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [annualLeaveBalance, setAnnualLeaveBalance] = useState<number>(14);
+  const [casualLeaveBalance, setCasualLeaveBalance] = useState<number>(7);
 
   useEffect(() => {
     async function checkRole() {
@@ -118,13 +121,17 @@ export default function LeaveRequestPage() {
 
       const { data: prof } = await supabase
         .from("profiles")
-        .select("role")
+        .select("role,annual_leave_balance,casual_leave_balance")
         .eq("id", u.user.id)
         .single();
 
       if (prof?.role === "admin") {
         router.replace("/admin");
+        return;
       }
+
+      setAnnualLeaveBalance(prof?.annual_leave_balance ?? 14);
+      setCasualLeaveBalance(prof?.casual_leave_balance ?? 7);
     }
     checkRole();
   }, [supabase, router]);
@@ -144,6 +151,16 @@ export default function LeaveRequestPage() {
 
     if (toYMDStr < fromYMDStr) {
       setErr("To date cannot be before From date.");
+      return;
+    }
+
+    // Calculate number of days
+    const daysDiff = Math.ceil((toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    
+    // Check leave balance
+    const currentBalance = leaveType === "annual" ? annualLeaveBalance : casualLeaveBalance;
+    if (daysDiff > currentBalance) {
+      setErr(`Insufficient leave balance. You have ${currentBalance} days remaining for ${leaveType} leave.`);
       return;
     }
 
@@ -176,6 +193,7 @@ export default function LeaveRequestPage() {
         to_date: toYMDStr,
         reason: reason.trim(),
         status: "pending",
+        leave_type: leaveType,
       })
       .select("id")
       .single();
@@ -229,6 +247,52 @@ export default function LeaveRequestPage() {
         </Link>
 
         <form onSubmit={submit} className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8 space-y-6">
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
+            <div className="flex justify-between text-sm mb-2">
+              <span className="font-semibold text-gray-900">Leave Balance</span>
+            </div>
+            <div className="flex gap-4">
+              <div className="flex-1">
+                <div className="text-xs text-gray-600 mb-1">Annual Leave</div>
+                <div className="text-2xl font-bold text-gray-900">{annualLeaveBalance}</div>
+                <div className="text-xs text-gray-500">days remaining</div>
+              </div>
+              <div className="flex-1">
+                <div className="text-xs text-gray-600 mb-1">Casual Leave</div>
+                <div className="text-2xl font-bold text-gray-900">{casualLeaveBalance}</div>
+                <div className="text-xs text-gray-500">days remaining</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-gray-900">Leave Type</label>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="leaveType"
+                  value="annual"
+                  checked={leaveType === "annual"}
+                  onChange={(e) => setLeaveType(e.target.value as "annual" | "casual")}
+                  className="w-4 h-4 text-black focus:ring-black"
+                />
+                <span className="text-sm font-medium text-gray-900">Annual Leave ({annualLeaveBalance} days left)</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="leaveType"
+                  value="casual"
+                  checked={leaveType === "casual"}
+                  onChange={(e) => setLeaveType(e.target.value as "annual" | "casual")}
+                  className="w-4 h-4 text-black focus:ring-black"
+                />
+                <span className="text-sm font-medium text-gray-900">Casual Leave ({casualLeaveBalance} days left)</span>
+              </label>
+            </div>
+          </div>
+
           <div className="grid gap-6 sm:grid-cols-2">
             <PopDatePicker
               label="From Date"

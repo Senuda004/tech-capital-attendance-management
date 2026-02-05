@@ -12,6 +12,7 @@ type LeaveRow = {
   to_date: string;
   reason: string;
   status: "pending" | "approved" | "rejected";
+  leave_type: "annual" | "casual";
   created_at: string;
   profiles?: { name: string | null } | null;
 };

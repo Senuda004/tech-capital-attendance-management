@@ -74,7 +74,7 @@ export default function AdminHome() {
 
           <Link
             href="/admin/attendance"
-            className="group bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-lg hover:border-gray-300 transition-all duration-200 sm:col-span-2 lg:col-span-1"
+            className="group bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-lg hover:border-gray-300 transition-all duration-200"
           >
             <div className="w-12 h-12 bg-black rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
               <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -84,6 +84,21 @@ export default function AdminHome() {
             <div className="font-semibold text-lg mb-1">Attendance</div>
             <div className="text-sm text-gray-500">
               View attendance reports
+            </div>
+          </Link>
+
+          <Link
+            href="/admin/daily-attendance"
+            className="group bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-lg hover:border-gray-300 transition-all duration-200"
+          >
+            <div className="w-12 h-12 bg-black rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div className="font-semibold text-lg mb-1">Daily Attendance</div>
+            <div className="text-sm text-gray-500">
+              View daily check-in/check-out times
             </div>
           </Link>
         </div>
