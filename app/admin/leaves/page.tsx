@@ -11,7 +11,7 @@ type LeaveRow = {
   from_date: string;
   to_date: string;
   reason: string;
-  status: "pending" | "approved" | "rejected";
+  status: "pending" | "approved" | "rejected" | "cancelled";
   leave_type: "annual" | "casual";
   created_at: string;
   profiles?: { name: string | null } | null;
@@ -164,6 +164,7 @@ export default function AdminLeavesPage() {
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
                           r.status === 'approved' ? 'bg-green-50 text-green-700' :
                           r.status === 'rejected' ? 'bg-red-50 text-red-700' :
+                          r.status === 'cancelled' ? 'bg-gray-50 text-gray-700' :
                           'bg-yellow-50 text-yellow-700'
                         }`}>
                           {r.status}

@@ -272,6 +272,19 @@ export default function EmployeeAppPage() {
           </svg>
         </Link>
 
+        <Link
+          href="/app/work-summary"
+          className="flex items-center justify-between bg-white rounded-2xl border border-gray-200 shadow-sm px-6 py-4 hover:shadow-md hover:border-gray-300 transition-all duration-200"
+        >
+          <div>
+            <div className="font-semibold mb-1">Work Summary</div>
+            <div className="text-sm text-gray-500">Track your handled tasks</div>
+          </div>
+          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </Link>
+
         {err && <p className="text-sm text-red-600 bg-red-50 p-3 rounded-lg">{err}</p>}
 
         <div className="grid gap-4 sm:grid-cols-2">
