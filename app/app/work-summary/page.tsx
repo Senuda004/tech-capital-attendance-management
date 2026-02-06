@@ -12,9 +12,37 @@ type WorkSummaryRow = {
   handled_tasks: number;
 };
 
+const DEFAULT_WORK_TYPES = [
+  'Computer Repair',
+  'Computer Upgrade',
+  'New Computer installation',
+  'Head office user Support',
+  'POS Configuration',
+  'Mobile Device configuration',
+  'Scan and Go',
+  'Tabs ( HC )',
+  'Tabs ( HRP )',
+  'Tabs ( Backey Tab )',
+  'Other users Support',
+];
+
+function getCurrentMonth() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}`;
+}
+
+function getMonthDisplay(monthStr: string) {
+  const [year, month] = monthStr.split('-');
+  const date = new Date(parseInt(year), parseInt(month) - 1, 1);
+  return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
+}
+
 export default function WorkSummaryPage() {
   const supabase = useMemo(() => supabaseBrowser(), []);
   const router = useRouter();
+  const currentMonth = getCurrentMonth();
   const [rows, setRows] = useState<WorkSummaryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -23,6 +51,29 @@ export default function WorkSummaryPage() {
   const [editValue, setEditValue] = useState<number>(0);
   const [newWork, setNewWork] = useState("");
   const [addingNew, setAddingNew] = useState(false);
+
+  async function ensureDefaultWorkTypes(userId: string) {
+    // Check if user has work types for current month
+    const { data: existing } = await supabase
+      .from("work_summary")
+      .select("work")
+      .eq("user_id", userId)
+      .eq("month", currentMonth);
+
+    if (existing && existing.length > 0) {
+      return; // Already has records for this month
+    }
+
+    // Create default work types for current month
+    const defaultRecords = DEFAULT_WORK_TYPES.map(work => ({
+      user_id: userId,
+      work,
+      handled_tasks: 0,
+      month: currentMonth,
+    }));
+
+    await supabase.from("work_summary").insert(defaultRecords);
+  }
 
   async function load() {
     setErr(null);
@@ -45,10 +96,15 @@ export default function WorkSummaryPage() {
       return;
     }
 
+    // Ensure default work types exist for current month
+    await ensureDefaultWorkTypes(u.user.id);
+
+    // Load work summary for current month only
     const { data, error } = await supabase
       .from("work_summary")
       .select("id,work,handled_tasks")
       .eq("user_id", u.user.id)
+      .eq("month", currentMonth)
       .order("id", { ascending: true });
 
     if (error) {
@@ -112,6 +168,7 @@ export default function WorkSummaryPage() {
         user_id: u.user.id,
         work: newWork.trim(),
         handled_tasks: 0,
+        month: currentMonth,
       })
       .select()
       .single();
@@ -154,7 +211,9 @@ export default function WorkSummaryPage() {
             <h1 className="text-3xl font-bold tracking-tight mb-2 text-gray-900">
               Work Summary
             </h1>
-            <p className="text-sm text-gray-600">Track your handled tasks</p>
+            <p className="text-sm text-gray-600">
+              Track your handled tasks for {getMonthDisplay(currentMonth)}
+            </p>
           </div>
           <LogoutButton />
         </div>

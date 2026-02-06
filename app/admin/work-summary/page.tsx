@@ -16,11 +16,25 @@ type WorkSummaryRow = {
   handled_tasks: number;
 };
 
+function getCurrentMonth() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}`;
+}
+
+function getMonthDisplay(monthStr: string) {
+  const [year, month] = monthStr.split('-');
+  const date = new Date(parseInt(year), parseInt(month) - 1, 1);
+  return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
+}
+
 export default function AdminWorkSummaryPage() {
   const supabase = useMemo(() => supabaseBrowser(), []);
   const router = useRouter();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string>("");
+  const [selectedMonth, setSelectedMonth] = useState<string>(getCurrentMonth());
   const [workSummary, setWorkSummary] = useState<WorkSummaryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingSummary, setLoadingSummary] = useState(false);
@@ -63,7 +77,7 @@ export default function AdminWorkSummaryPage() {
     setLoading(false);
   }
 
-  async function loadWorkSummary(userId: string) {
+  async function loadWorkSummary(userId: string, month: string) {
     if (!userId) {
       setWorkSummary([]);
       return;
@@ -76,6 +90,7 @@ export default function AdminWorkSummaryPage() {
       .from("work_summary")
       .select("id,work,handled_tasks")
       .eq("user_id", userId)
+      .eq("month", month)
       .order("id", { ascending: true });
 
     if (error) {
@@ -94,11 +109,11 @@ export default function AdminWorkSummaryPage() {
   }, []);
 
   useEffect(() => {
-    if (selectedUserId) {
-      loadWorkSummary(selectedUserId);
+    if (selectedUserId && selectedMonth) {
+      loadWorkSummary(selectedUserId, selectedMonth);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedUserId]);
+  }, [selectedUserId, selectedMonth]);
 
   const selectedEmployee = profiles.find((p) => p.id === selectedUserId);
   const totalTasks = workSummary.reduce((sum, row) => sum + row.handled_tasks, 0);
@@ -138,22 +153,36 @@ export default function AdminWorkSummaryPage() {
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
-          <div className="mb-6">
-            <label className="text-sm font-medium text-gray-700 mb-2 block">
-              Select Employee
-            </label>
-            <select
-              className="w-full max-w-md rounded-xl border border-gray-300 p-3 focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none"
-              value={selectedUserId}
-              onChange={(e) => setSelectedUserId(e.target.value)}
-            >
-              <option value="">-- Choose an employee --</option>
-              {profiles.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
+          <div className="grid gap-4 sm:grid-cols-2 mb-6">
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-2 block">
+                Select Employee
+              </label>
+              <select
+                className="w-full rounded-xl border border-gray-300 p-3 focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none"
+                value={selectedUserId}
+                onChange={(e) => setSelectedUserId(e.target.value)}
+              >
+                <option value="">-- Choose an employee --</option>
+                {profiles.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-2 block">
+                Select Month
+              </label>
+              <input
+                type="month"
+                className="w-full rounded-xl border border-gray-300 p-3 focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none"
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+              />
+            </div>
           </div>
 
           {err && (
@@ -164,20 +193,23 @@ export default function AdminWorkSummaryPage() {
 
           {loading && <p className="text-gray-500">Loading employees...</p>}
 
-          {!loading && !selectedUserId && (
+          {!loading && (!selectedUserId || !selectedMonth) && (
             <p className="text-gray-400 text-center py-8">
-              Please select an employee to view their work summary
+              Please select an employee and month to view work summary
             </p>
           )}
 
-          {selectedUserId && (
+          {selectedUserId && selectedMonth && (
             <>
               <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-sm text-gray-600 mb-1">Viewing work summary for</div>
+                    <div className="text-sm text-gray-600 mb-1">Work summary for</div>
                     <div className="text-xl font-bold text-gray-900">
                       {selectedEmployee?.name}
+                    </div>
+                    <div className="text-sm text-gray-600 mt-1">
+                      {getMonthDisplay(selectedMonth)}
                     </div>
                   </div>
                   <div className="text-right">
@@ -195,7 +227,7 @@ export default function AdminWorkSummaryPage() {
 
               {!loadingSummary && workSummary.length === 0 && (
                 <p className="text-gray-400 text-center py-8">
-                  No work summary records for this employee yet
+                  No work summary records for {getMonthDisplay(selectedMonth)}
                 </p>
               )}
 

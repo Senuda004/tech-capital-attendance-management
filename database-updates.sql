@@ -23,12 +23,16 @@ CREATE TABLE IF NOT EXISTS work_summary (
   user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   work TEXT NOT NULL,
   handled_tasks INTEGER NOT NULL DEFAULT 0,
+  month TEXT NOT NULL, -- Format: YYYY-MM (e.g., 2026-02)
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(user_id, work, month) -- Prevent duplicate work entries for same user and month
 );
 
 -- Add index for faster queries
 CREATE INDEX IF NOT EXISTS idx_work_summary_user_id ON work_summary(user_id);
+CREATE INDEX IF NOT EXISTS idx_work_summary_month ON work_summary(month);
+CREATE INDEX IF NOT EXISTS idx_work_summary_user_month ON work_summary(user_id, month);
 
 -- Enable Row Level Security
 ALTER TABLE work_summary ENABLE ROW LEVEL SECURITY;
@@ -68,12 +72,13 @@ USING (
   )
 );
 
--- Insert default work types for all existing employees
-INSERT INTO work_summary (user_id, work, handled_tasks)
+-- Insert default work types for all existing employees for current month
+INSERT INTO work_summary (user_id, work, handled_tasks, month)
 SELECT 
   p.id as user_id,
   w.work_name as work,
-  0 as handled_tasks
+  0 as handled_tasks,
+  TO_CHAR(CURRENT_DATE, 'YYYY-MM') as month
 FROM 
   profiles p
 CROSS JOIN (
@@ -94,7 +99,9 @@ WHERE
   p.role = 'employee'
   AND NOT EXISTS (
     SELECT 1 FROM work_summary ws 
-    WHERE ws.user_id = p.id AND ws.work = w.work_name
+    WHERE ws.user_id = p.id 
+    AND ws.work = w.work_name 
+    AND ws.month = TO_CHAR(CURRENT_DATE, 'YYYY-MM')
   );
 
 -- Create function to add default work types for new employees
@@ -103,19 +110,19 @@ RETURNS TRIGGER AS $$
 BEGIN
   -- Only add default work types for employees
   IF NEW.role = 'employee' THEN
-    INSERT INTO work_summary (user_id, work, handled_tasks)
+    INSERT INTO work_summary (user_id, work, handled_tasks, month)
     VALUES 
-      (NEW.id, 'Computer Repair', 0),
-      (NEW.id, 'Computer Upgrade', 0),
-      (NEW.id, 'New Computer installation', 0),
-      (NEW.id, 'Head office user Support', 0),
-      (NEW.id, 'POS Configuration', 0),
-      (NEW.id, 'Mobile Device configuration', 0),
-      (NEW.id, 'Scan and Go', 0),
-      (NEW.id, 'Tabs ( HC )', 0),
-      (NEW.id, 'Tabs ( HRP )', 0),
-      (NEW.id, 'Tabs ( Backey Tab )', 0),
-      (NEW.id, 'Other users Support', 0);
+      (NEW.id, 'Computer Repair', 0, TO_CHAR(CURRENT_DATE, 'YYYY-MM')),
+      (NEW.id, 'Computer Upgrade', 0, TO_CHAR(CURRENT_DATE, 'YYYY-MM')),
+      (NEW.id, 'New Computer installation', 0, TO_CHAR(CURRENT_DATE, 'YYYY-MM')),
+      (NEW.id, 'Head office user Support', 0, TO_CHAR(CURRENT_DATE, 'YYYY-MM')),
+      (NEW.id, 'POS Configuration', 0, TO_CHAR(CURRENT_DATE, 'YYYY-MM')),
+      (NEW.id, 'Mobile Device configuration', 0, TO_CHAR(CURRENT_DATE, 'YYYY-MM')),
+      (NEW.id, 'Scan and Go', 0, TO_CHAR(CURRENT_DATE, 'YYYY-MM')),
+      (NEW.id, 'Tabs ( HC )', 0, TO_CHAR(CURRENT_DATE, 'YYYY-MM')),
+      (NEW.id, 'Tabs ( HRP )', 0, TO_CHAR(CURRENT_DATE, 'YYYY-MM')),
+      (NEW.id, 'Tabs ( Backey Tab )', 0, TO_CHAR(CURRENT_DATE, 'YYYY-MM')),
+      (NEW.id, 'Other users Support', 0, TO_CHAR(CURRENT_DATE, 'YYYY-MM'));
   END IF;
   RETURN NEW;
 END;
