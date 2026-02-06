@@ -172,7 +172,7 @@ export default function AdminAttendancePage() {
   }, []);
 
   const report = useMemo(() => {
-    const { start, end } = monthRange(month);
+    const { start, end, endYMD } = monthRange(month);
     const days = listDaysInMonth(start, end);
     const todayYMD = ymd(new Date());
 
@@ -186,7 +186,11 @@ export default function AdminAttendancePage() {
       leaveByUser.set(l.user_id, arr);
     });
 
-    return profiles.map((p) => {
+    return profiles.filter((p) => {
+      // Filter out employees who weren't enrolled by the end of the selected month
+      const joinYMD = p.created_at?.slice(0, 10) ?? "0000-00-00";
+      return joinYMD <= endYMD;
+    }).map((p) => {
       let presentDays = 0;
       let absentDays = 0;
       let approvedLeaveDays = 0;

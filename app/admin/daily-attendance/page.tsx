@@ -6,7 +6,7 @@ import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { isNonWorkingDay } from "@/lib/nonWorkingDays";
 
-type Profile = { id: string; name: string; role: string };
+type Profile = { id: string; name: string; role: string; created_at: string };
 type AttendanceRow = {
   user_id: string;
   date: string;
@@ -74,7 +74,7 @@ export default function DailyAttendancePage() {
 
     const profRes = await supabase
       .from("profiles")
-      .select("id,name,role")
+      .select("id,name,role,created_at")
       .eq("role", "employee")
       .order("name", { ascending: true });
 
@@ -132,7 +132,11 @@ export default function DailyAttendancePage() {
 
     const isWeekendOrHoliday = isNonWorkingDay(selectedDate);
 
-    return profiles.map((p) => {
+    return profiles.filter((p) => {
+      // Filter out employees who weren't enrolled on the selected date
+      const joinYMD = p.created_at?.slice(0, 10) ?? "0000-00-00";
+      return selectedDate >= joinYMD;
+    }).map((p) => {
       const myLeaves = leaveByUser.get(p.id) ?? [];
       const approved = isApprovedLeave(selectedDate, myLeaves);
       const pending = isPendingLeave(selectedDate, myLeaves);
