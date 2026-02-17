@@ -135,3 +135,78 @@ CREATE TRIGGER trigger_add_default_work_summary
   FOR EACH ROW
   EXECUTE FUNCTION add_default_work_summary();
 
+-- ============================================================
+-- AUTO-CHECKOUT AT 6:00 PM
+-- ============================================================
+
+-- Create function to auto-checkout employees at 6:00 PM
+-- This function finds all employees who checked in but haven't checked out
+-- and automatically checks them out at 6:00 PM
+CREATE OR REPLACE FUNCTION auto_checkout_employees()
+RETURNS TEXT AS $$
+DECLARE
+  today_date DATE;
+  checkout_time TIMESTAMP WITH TIME ZONE;
+  updated_count INTEGER;
+BEGIN
+  -- Get today's date
+  today_date := CURRENT_DATE;
+  
+  -- Set checkout time to 6:00 PM today (18:00)
+  checkout_time := (CURRENT_DATE + TIME '18:00:00')::TIMESTAMP WITH TIME ZONE;
+  
+  -- Update all attendance records where check_in exists but check_out is null
+  WITH updated AS (
+    UPDATE attendance
+    SET check_out = checkout_time
+    WHERE date = today_date
+      AND check_in IS NOT NULL
+      AND check_out IS NULL
+    RETURNING *
+  )
+  SELECT COUNT(*) INTO updated_count FROM updated;
+  
+  -- Log the result
+  RAISE NOTICE 'Auto-checkout completed: % employees checked out at 6:00 PM on %', updated_count, today_date;
+  
+  RETURN format('Successfully auto-checked out %s employees at 6:00 PM on %s', updated_count, today_date);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ============================================================
+-- CRON JOB SETUP (Requires pg_cron extension)
+-- ============================================================
+-- 
+-- To enable automatic checkout at 6:00 PM every day, you need to:
+-- 
+-- 1. Enable pg_cron extension (if not already enabled):
+--    Enable it from Supabase Dashboard > Database > Extensions
+--    Or run: CREATE EXTENSION IF NOT EXISTS pg_cron;
+--
+-- 2. Schedule the auto-checkout function to run at 6:00 PM daily:
+--
+-- SELECT cron.schedule(
+--   'auto-checkout-at-6pm',           -- Job name
+--   '0 18 * * *',                      -- Cron schedule: Every day at 6:00 PM
+--   $$ SELECT auto_checkout_employees(); $$
+-- );
+--
+-- 3. To view all scheduled jobs:
+--    SELECT * FROM cron.job;
+--
+-- 4. To unschedule the job (if needed):
+--    SELECT cron.unschedule('auto-checkout-at-6pm');
+--
+-- ============================================================
+-- ALTERNATIVE: Use external cron service
+-- ============================================================
+--
+-- If pg_cron is not available, you can use an external cron service
+-- (like cron-job.org, GitHub Actions, Vercel Cron, etc.) to call:
+--
+--   POST https://your-domain.com/api/auto-checkout
+--   Authorization: Bearer YOUR_CRON_SECRET
+--
+-- Make sure to set CRON_SECRET in your environment variables.
+-- ============================================================
+

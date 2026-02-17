@@ -31,7 +31,7 @@ export default function AdminHome() {
     checkRole();
   }, [supabase, router]);
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="min-h-screen bg-linear-to-br from-gray-50 to-gray-100">
       <div className="mx-auto max-w-4xl p-8 space-y-8">
         <div className="flex items-center justify-between">
           <div>
@@ -114,6 +114,21 @@ export default function AdminHome() {
             <div className="font-semibold text-lg mb-1">Work Summary</div>
             <div className="text-sm text-gray-500">
               View employee work summaries
+            </div>
+          </Link>
+
+          <Link
+            href="/admin/auto-checkout"
+            className="group bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-lg hover:border-gray-300 transition-all duration-200"
+          >
+            <div className="w-12 h-12 bg-black rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div className="font-semibold text-lg mb-1">Auto-Checkout</div>
+            <div className="text-sm text-gray-500">
+              Manage automatic checkout at 6:00 PM
             </div>
           </Link>
         </div>
