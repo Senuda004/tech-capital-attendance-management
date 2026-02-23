@@ -19,6 +19,8 @@ type LeaveRow = {
   from_date: string;
   to_date: string;
   status: "pending" | "approved" | "rejected" | string;
+  is_half_day: boolean;
+  half_day_period: "morning" | "evening" | null;
 };
 
 function ymd(d: Date) {
@@ -29,15 +31,17 @@ function ymd(d: Date) {
 }
 
 function isApprovedLeave(date: string, leaveRows: LeaveRow[]) {
-  return leaveRows.some(
+  const leave = leaveRows.find(
     (l) => l.status === "approved" && l.from_date <= date && date <= l.to_date
   );
+  return leave;
 }
 
 function isPendingLeave(date: string, leaveRows: LeaveRow[]) {
-  return leaveRows.some(
+  const leave = leaveRows.find(
     (l) => l.status === "pending" && l.from_date <= date && date <= l.to_date
   );
+  return leave;
 }
 
 export default function DailyAttendancePage() {
@@ -97,7 +101,7 @@ export default function DailyAttendancePage() {
 
     const leaveRes = await supabase
       .from("leave_requests")
-      .select("user_id,from_date,to_date,status")
+      .select("user_id,from_date,to_date,status,is_half_day,half_day_period")
       .in("status", ["approved", "pending"])
       .lte("from_date", selectedDate)
       .gte("to_date", selectedDate);
@@ -138,8 +142,8 @@ export default function DailyAttendancePage() {
       return selectedDate >= joinYMD;
     }).map((p) => {
       const myLeaves = leaveByUser.get(p.id) ?? [];
-      const approved = isApprovedLeave(selectedDate, myLeaves);
-      const pending = isPendingLeave(selectedDate, myLeaves);
+      const approvedLeave = isApprovedLeave(selectedDate, myLeaves);
+      const pendingLeave = isPendingLeave(selectedDate, myLeaves);
       const att = attMap.get(p.id);
 
       let status = "Absent";
@@ -149,10 +153,20 @@ export default function DailyAttendancePage() {
 
       if (isWeekendOrHoliday) {
         status = "Non-working day";
-      } else if (approved) {
-        status = "Approved Leave";
-      } else if (pending) {
-        status = "Pending Leave";
+      } else if (approvedLeave) {
+        if (approvedLeave.is_half_day) {
+          const period = approvedLeave.half_day_period === "morning" ? "Morning" : "Evening";
+          status = `Approved Leave (${period} Half)`;
+        } else {
+          status = "Approved Leave";
+        }
+      } else if (pendingLeave) {
+        if (pendingLeave.is_half_day) {
+          const period = pendingLeave.half_day_period === "morning" ? "Morning" : "Evening";
+          status = `Pending Leave (${period} Half)`;
+        } else {
+          status = "Pending Leave";
+        }
       } else if (att?.check_in) {
         status = att.check_out ? "Present" : "Checked In";
         checkIn = att.check_in;

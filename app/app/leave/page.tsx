@@ -104,7 +104,9 @@ type LeaveRequest = {
   to_date: string;
   reason: string;
   status: "pending" | "approved" | "rejected" | "cancelled";
-  leave_type: "annual" | "casual";
+  leave_type: "sick" | "casual";
+  is_half_day: boolean;
+  half_day_period: "morning" | "evening" | null;
   created_at: string;
 };
 
@@ -114,7 +116,9 @@ export default function LeaveRequestPage() {
   const [fromDate, setFromDate] = useState<Date>(todayDate());
   const [toDate, setToDate] = useState<Date>(todayDate());
   const [reason, setReason] = useState("");
-  const [leaveType, setLeaveType] = useState<"annual" | "casual">("annual");
+  const [leaveType, setLeaveType] = useState<"sick" | "casual">("sick");
+  const [dayType, setDayType] = useState<"full" | "half">("full");
+  const [halfDayPeriod, setHalfDayPeriod] = useState<"morning" | "evening">("morning");
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -148,7 +152,7 @@ export default function LeaveRequestPage() {
       // Load leave requests
       const { data: leaves } = await supabase
         .from("leave_requests")
-        .select("id,from_date,to_date,reason,status,leave_type,created_at")
+        .select("id,from_date,to_date,reason,status,leave_type,is_half_day,half_day_period,created_at")
         .eq("user_id", u.user.id)
         .order("created_at", { ascending: false });
 
@@ -177,11 +181,21 @@ export default function LeaveRequestPage() {
       return;
     }
 
-    // Calculate number of days
-    const daysDiff = Math.ceil((toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    // Calculate number of days (0.5 for half-day, otherwise full days)
+    let daysDiff: number;
+    if (dayType === "half") {
+      // Half-day leave must be for single day only
+      if (fromYMDStr !== toYMDStr) {
+        setErr("Half-day leave can only be applied for a single day.");
+        return;
+      }
+      daysDiff = 0.5;
+    } else {
+      daysDiff = Math.ceil((toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    }
     
     // Check leave balance
-    const currentBalance = leaveType === "annual" ? sickLeaveBalance : casualLeaveBalance;
+    const currentBalance = leaveType === "sick" ? sickLeaveBalance : casualLeaveBalance;
     if (daysDiff > currentBalance) {
       setErr(`Insufficient leave balance. You have ${currentBalance} days remaining for ${leaveType} leave.`);
       return;
@@ -217,6 +231,8 @@ export default function LeaveRequestPage() {
         reason: reason.trim(),
         status: "pending",
         leave_type: leaveType,
+        is_half_day: dayType === "half",
+        half_day_period: dayType === "half" ? halfDayPeriod : null,
       })
       .select("id")
       .single();
@@ -228,7 +244,7 @@ export default function LeaveRequestPage() {
     }
 
     // Deduct leave balance immediately
-    const balanceColumn = leaveType === "annual" ? "sick_leave_balance" : "casual_leave_balance";
+    const balanceColumn = leaveType === "sick" ? "sick_leave_balance" : "casual_leave_balance";
     const newBalance = currentBalance - daysDiff;
 
     console.log("Updating balance:", { balanceColumn, currentBalance, newBalance, daysDiff, userId: u.user.id });
@@ -244,7 +260,7 @@ export default function LeaveRequestPage() {
     } else {
       console.log("Balance updated successfully");
       // Update local state
-      if (leaveType === "annual") {
+      if (leaveType === "sick") {
         setSickLeaveBalance(newBalance);
       } else {
         setCasualLeaveBalance(newBalance);
@@ -281,7 +297,7 @@ export default function LeaveRequestPage() {
     // Reload leave requests
     const { data: leaves } = await supabase
       .from("leave_requests")
-      .select("id,from_date,to_date,reason,status,leave_type,created_at")
+      .select("id,from_date,to_date,reason,status,leave_type,is_half_day,half_day_period,created_at")
       .eq("user_id", u.user.id)
       .order("created_at", { ascending: false });
 
@@ -292,7 +308,7 @@ export default function LeaveRequestPage() {
     setLoading(false);
   }
 
-  async function cancelLeave(leaveId: string, leaveType: "annual" | "casual", fromDate: string, toDate: string) {
+  async function cancelLeave(leaveId: string, leaveType: "sick" | "casual", fromDate: string, toDate: string, isHalfDay: boolean) {
     if (!confirm("Are you sure you want to cancel this leave request?")) {
       return;
     }
@@ -309,9 +325,7 @@ export default function LeaveRequestPage() {
     }
 
     // Calculate days to restore
-    const from = fromYMD(fromDate);
-    const to = fromYMD(toDate);
-    const daysDiff = Math.ceil((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    const daysDiff = isHalfDay ? 0.5 : Math.ceil((fromYMD(toDate).getTime() - fromYMD(fromDate).getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
     // First, verify the leave request exists and is pending
     const { data: checkData, error: checkError } = await supabase
@@ -375,8 +389,8 @@ export default function LeaveRequestPage() {
     );
 
     // Restore leave balance
-    const balanceColumn = leaveType === "annual" ? "sick_leave_balance" : "casual_leave_balance";
-    const currentBalance = leaveType === "annual" ? sickLeaveBalance : casualLeaveBalance;
+    const balanceColumn = leaveType === "sick" ? "sick_leave_balance" : "casual_leave_balance";
+    const currentBalance = leaveType === "sick" ? sickLeaveBalance : casualLeaveBalance;
     const newBalance = currentBalance + daysDiff;
 
     const { error: updateErr } = await supabase
@@ -389,7 +403,7 @@ export default function LeaveRequestPage() {
       setErr(`Leave cancelled but balance restore failed: ${updateErr.message}`);
     } else {
       // Update local state
-      if (leaveType === "annual") {
+      if (leaveType === "sick") {
         setSickLeaveBalance(newBalance);
       } else {
         setCasualLeaveBalance(newBalance);
@@ -426,12 +440,12 @@ export default function LeaveRequestPage() {
             <div className="flex gap-4">
               <div className="flex-1">
                 <div className="text-xs text-gray-600 mb-1">Sick Leave</div>
-                <div className="text-2xl font-bold text-gray-900">{sickLeaveBalance}</div>
+                <div className="text-2xl font-bold text-gray-900">{sickLeaveBalance % 1 === 0 ? sickLeaveBalance : sickLeaveBalance.toFixed(1)}</div>
                 <div className="text-xs text-gray-500">days remaining</div>
               </div>
               <div className="flex-1">
                 <div className="text-xs text-gray-600 mb-1">Casual Leave</div>
-                <div className="text-2xl font-bold text-gray-900">{casualLeaveBalance}</div>
+                <div className="text-2xl font-bold text-gray-900">{casualLeaveBalance % 1 === 0 ? casualLeaveBalance : casualLeaveBalance.toFixed(1)}</div>
                 <div className="text-xs text-gray-500">days remaining</div>
               </div>
             </div>
@@ -444,12 +458,12 @@ export default function LeaveRequestPage() {
                 <input
                   type="radio"
                   name="leaveType"
-                  value="annual"
-                  checked={leaveType === "annual"}
-                  onChange={(e) => setLeaveType(e.target.value as "annual" | "casual")}
+                  value="sick"
+                  checked={leaveType === "sick"}
+                  onChange={(e) => setLeaveType(e.target.value as "sick" | "casual")}
                   className="w-4 h-4 text-black focus:ring-black"
                 />
-                <span className="text-sm font-medium text-gray-900">Sick Leave ({sickLeaveBalance} days left)</span>
+                <span className="text-sm font-medium text-gray-900">Sick Leave ({sickLeaveBalance % 1 === 0 ? sickLeaveBalance : sickLeaveBalance.toFixed(1)} days left)</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -457,12 +471,76 @@ export default function LeaveRequestPage() {
                   name="leaveType"
                   value="casual"
                   checked={leaveType === "casual"}
-                  onChange={(e) => setLeaveType(e.target.value as "annual" | "casual")}
+                  onChange={(e) => setLeaveType(e.target.value as "sick" | "casual")}
                   className="w-4 h-4 text-black focus:ring-black"
                 />
-                <span className="text-sm font-medium text-gray-900">Casual Leave ({casualLeaveBalance} days left)</span>
+                <span className="text-sm font-medium text-gray-900">Casual Leave ({casualLeaveBalance % 1 === 0 ? casualLeaveBalance : casualLeaveBalance.toFixed(1)} days left)</span>
               </label>
             </div>
+          </div>
+
+          <div className="space-y-3">
+            <label className="text-sm font-semibold text-gray-900">Duration</label>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="dayType"
+                  value="full"
+                  checked={dayType === "full"}
+                  onChange={(e) => setDayType(e.target.value as "full" | "half")}
+                  className="w-4 h-4 text-black focus:ring-black"
+                />
+                <span className="text-sm font-medium text-gray-900">Full Day</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="dayType"
+                  value="half"
+                  checked={dayType === "half"}
+                  onChange={(e) => {
+                    setDayType(e.target.value as "full" | "half");
+                    // If half-day is selected, ensure from and to dates are the same
+                    if (e.target.value === "half") {
+                      setToDate(fromDate);
+                    }
+                  }}
+                  className="w-4 h-4 text-black focus:ring-black"
+                />
+                <span className="text-sm font-medium text-gray-900">Half Day (0.5 days)</span>
+              </label>
+            </div>
+            
+            {dayType === "half" && (
+              <div className="ml-6 space-y-2">
+                <label className="text-xs font-medium text-gray-700">Select Half</label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="halfDayPeriod"
+                      value="morning"
+                      checked={halfDayPeriod === "morning"}
+                      onChange={(e) => setHalfDayPeriod(e.target.value as "morning" | "evening")}
+                      className="w-4 h-4 text-black focus:ring-black"
+                    />
+                    <span className="text-sm text-gray-900">Morning Half</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="halfDayPeriod"
+                      value="evening"
+                      checked={halfDayPeriod === "evening"}
+                      onChange={(e) => setHalfDayPeriod(e.target.value as "morning" | "evening")}
+                      className="w-4 h-4 text-black focus:ring-black"
+                    />
+                    <span className="text-sm text-gray-900">Evening Half</span>
+                  </label>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="grid gap-6 sm:grid-cols-2">
@@ -480,7 +558,13 @@ export default function LeaveRequestPage() {
             <PopDatePicker
               label="To Date"
               value={toDate}
-              onChange={setToDate}
+              onChange={(d) => {
+                setToDate(d);
+                // If half-day is checked and dates differ, switch to full day
+                if (dayType === "half" && toYMD(d) !== toYMD(fromDate)) {
+                  setDayType("full");
+                }
+              }}
               minDate={fromDate}
             />
           </div>
@@ -538,7 +622,8 @@ export default function LeaveRequestPage() {
                           {leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}
                         </span>
                         <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700">
-                          {leave.leave_type === "annual" ? "Sick Leave" : "Casual Leave"}
+                          {leave.leave_type === "sick" ? "Sick Leave" : "Casual Leave"}
+                          {leave.is_half_day && ` (${leave.half_day_period === "morning" ? "Morning" : "Evening"} Half)`}
                         </span>
                       </div>
 
@@ -560,7 +645,7 @@ export default function LeaveRequestPage() {
 
                     <div>
                       <button
-                        onClick={() => cancelLeave(leave.id, leave.leave_type, leave.from_date, leave.to_date)}
+                        onClick={() => cancelLeave(leave.id, leave.leave_type, leave.from_date, leave.to_date, leave.is_half_day)}
                         disabled={leave.status !== "pending" || cancelingId === leave.id}
                         className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                           leave.status !== "pending"

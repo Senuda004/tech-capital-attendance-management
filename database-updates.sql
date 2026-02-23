@@ -1,11 +1,47 @@
 -- Add leave balance columns to profiles table
 ALTER TABLE profiles 
-ADD COLUMN IF NOT EXISTS sick_leave_balance INTEGER DEFAULT 7,
-ADD COLUMN IF NOT EXISTS casual_leave_balance INTEGER DEFAULT 14;
+ADD COLUMN IF NOT EXISTS sick_leave_balance NUMERIC(5,1) DEFAULT 7,
+ADD COLUMN IF NOT EXISTS casual_leave_balance NUMERIC(5,1) DEFAULT 14;
+
+-- Update existing INTEGER columns to NUMERIC to support half-day leaves (0.5 values)
+-- Only run if columns already exist as INTEGER
+DO $$ 
+BEGIN
+  -- Check and alter sick_leave_balance if it's INTEGER
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'profiles' 
+    AND column_name = 'sick_leave_balance' 
+    AND data_type = 'integer'
+  ) THEN
+    ALTER TABLE profiles ALTER COLUMN sick_leave_balance TYPE NUMERIC(5,1);
+  END IF;
+  
+  -- Check and alter casual_leave_balance if it's INTEGER
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'profiles' 
+    AND column_name = 'casual_leave_balance' 
+    AND data_type = 'integer'
+  ) THEN
+    ALTER TABLE profiles ALTER COLUMN casual_leave_balance TYPE NUMERIC(5,1);
+  END IF;
+END $$;
 
 -- Add leave_type column to leave_requests table
 ALTER TABLE leave_requests 
-ADD COLUMN IF NOT EXISTS leave_type TEXT CHECK (leave_type IN ('annual', 'casual')) DEFAULT 'annual';
+ADD COLUMN IF NOT EXISTS leave_type TEXT CHECK (leave_type IN ('sick', 'casual')) DEFAULT 'sick';
+
+-- Update existing 'annual' values to 'sick' for clarity
+UPDATE leave_requests SET leave_type = 'sick' WHERE leave_type = 'annual';
+
+-- Drop old leave_type constraint and add new one with 'sick' instead of 'annual'
+ALTER TABLE leave_requests 
+DROP CONSTRAINT IF EXISTS leave_requests_leave_type_check;
+
+ALTER TABLE leave_requests 
+ADD CONSTRAINT leave_requests_leave_type_check 
+CHECK (leave_type IN ('sick', 'casual'));
 
 -- Update status column to support 'cancelled' status
 -- First, drop the existing constraint
@@ -210,3 +246,18 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- Make sure to set CRON_SECRET in your environment variables.
 -- ============================================================
 
+-- ============================================================
+-- HALF-DAY LEAVE SUPPORT
+-- ============================================================
+
+-- Add is_half_day column to leave_requests table
+ALTER TABLE leave_requests 
+ADD COLUMN IF NOT EXISTS is_half_day BOOLEAN DEFAULT FALSE;
+
+-- Add half_day_period column to store morning or evening
+ALTER TABLE leave_requests 
+ADD COLUMN IF NOT EXISTS half_day_period TEXT CHECK (half_day_period IN ('morning', 'evening', NULL));
+
+-- Add comment for clarity
+COMMENT ON COLUMN leave_requests.is_half_day IS 'Indicates if the leave is for half day (0.5 days). Half-day leaves count as 0.5 days and deduct 0.5 from the leave balance.';
+COMMENT ON COLUMN leave_requests.half_day_period IS 'For half-day leaves, indicates whether it is morning half or evening half.';

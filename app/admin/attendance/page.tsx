@@ -25,6 +25,8 @@ type LeaveRow = {
   from_date: string;
   to_date: string;
   status: "pending" | "approved" | "rejected" | string;
+  is_half_day: boolean;
+  half_day_period: "morning" | "evening" | null;
 };
 
 function ymd(d: Date) {
@@ -65,15 +67,17 @@ function formatHM(totalMinutes: number) {
 }
 
 function isApprovedLeave(date: string, leaveRows: LeaveRow[]) {
-  return leaveRows.some(
+  const leave = leaveRows.find(
     (l) => l.status === "approved" && l.from_date <= date && date <= l.to_date
   );
+  return leave ? (leave.is_half_day ? 0.5 : 1) : 0;
 }
 
 function isPendingLeave(date: string, leaveRows: LeaveRow[]) {
-  return leaveRows.some(
+  const leave = leaveRows.find(
     (l) => l.status === "pending" && l.from_date <= date && date <= l.to_date
   );
+  return leave ? (leave.is_half_day ? 0.5 : 1) : 0;
 }
 
 export default function AdminAttendancePage() {
@@ -141,7 +145,7 @@ export default function AdminAttendancePage() {
     // IMPORTANT: only approved + pending are needed for the report
     const leaveRes = await supabase
       .from("leave_requests")
-      .select("user_id,from_date,to_date,status")
+      .select("user_id,from_date,to_date,status,is_half_day,half_day_period")
       .in("status", ["approved", "pending"])
       .lte("from_date", endYMD)
       .gte("to_date", startYMD);
@@ -206,17 +210,17 @@ export default function AdminAttendancePage() {
         if (isNonWorkingDay(d)) continue;
         if (d < joinYMD) continue;
 
-        const approved = isApprovedLeave(d, myLeaves);
-        const pending = isPendingLeave(d, myLeaves);
+        const approvedDays = isApprovedLeave(d, myLeaves);
+        const pendingDays = isPendingLeave(d, myLeaves);
 
         // Check leave status first - count leaves even for future dates
-        if (approved) {
-          approvedLeaveDays += 1;
+        if (approvedDays > 0) {
+          approvedLeaveDays += approvedDays;
           continue;
         }
 
-        if (pending) {
-          pendingLeaveDays += 1;
+        if (pendingDays > 0) {
+          pendingLeaveDays += pendingDays;
           continue;
         }
 
@@ -305,18 +309,18 @@ export default function AdminAttendancePage() {
                     <tr key={r.id} className="hover:bg-gray-50 transition-colors">
                       <td className="p-4 font-medium">{r.name}</td>
                       <td className="p-4 text-green-600 font-medium">{r.presentDays}</td>
-                      <td className="p-4 text-blue-600 font-medium">{r.approvedLeaveDays}</td>
-                      <td className="p-4 text-yellow-600 font-medium">{r.pendingLeaveDays}</td>
+                      <td className="p-4 text-blue-600 font-medium">{r.approvedLeaveDays % 1 === 0 ? r.approvedLeaveDays : r.approvedLeaveDays.toFixed(1)}</td>
+                      <td className="p-4 text-yellow-600 font-medium">{r.pendingLeaveDays % 1 === 0 ? r.pendingLeaveDays : r.pendingLeaveDays.toFixed(1)}</td>
                       <td className="p-4 text-red-600 font-semibold">{r.absentDays}</td>
                       <td className="p-4 font-medium">{formatHM(r.workedMinutes)}</td>
                       <td className="p-4">
                         <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
-                          {r.sickLeaveBalance} days
+                          {r.sickLeaveBalance % 1 === 0 ? r.sickLeaveBalance : r.sickLeaveBalance.toFixed(1)} days
                         </span>
                       </td>
                       <td className="p-4">
                         <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-50 text-purple-700">
-                          {r.casualLeaveBalance} days
+                          {r.casualLeaveBalance % 1 === 0 ? r.casualLeaveBalance : r.casualLeaveBalance.toFixed(1)} days
                         </span>
                       </td>
                     </tr>
